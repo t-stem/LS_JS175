@@ -3,6 +3,7 @@ const URL = require('url').URL;
 const HANDLEBARS = require('handlebars');
 const PATH = require('path');
 const FS = require('fs');
+const QUERYSTRING = require('querystring');
 
 const MIME_TYPES = {
   '.css': 'text/css',
@@ -27,7 +28,7 @@ const LOAN_FORM_SOURCE = `
   <body>
     <article>
       <h1>Loan Calculator</h1>
-      <form action="/loan-offer" method="get">
+      <form action="/loan-offer" method="post">
         <p>All loans are offered at an APR of {{apr}}%.</p>
         <label for="amount">How much do you want to borrow (in dollars)?</label>
         <input type="number" name="amount" id="amount" value="">
@@ -117,8 +118,8 @@ function validateDurationInYears(durationInYears) {
 }
 
 function validateParams(params) {
-  let principal = params.get('amount');
-  let durationInYears = params.get('duration');
+  let principal = params.amount;
+  let durationInYears = params.duration;
 
   return [validatePrincipal(principal), validateDurationInYears(durationInYears)];
 }
@@ -165,7 +166,21 @@ function renderTemplateHTML(template, data) {
   return html;
 }
 
+function parseFormData(request, callback) {
+  let body = '';
+    request.on('data', chunk => {
+      body += chunk.toString();
+    });
+    request.on('end', () => {
+      let data = QUERYSTRING.parse(body);
+      data.amount = Number(data.amount);
+      data.duration = Number(data.duration);
+      callback(data);
+    });
+};
+
 const SERVER = HTTP.createServer((req, res) => {  
+  let method = req.method;
   let path = req.url;
   let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
   let pathName = url.pathname;
@@ -179,17 +194,34 @@ const SERVER = HTTP.createServer((req, res) => {
       res.setHeader('Content-Type', MIME_TYPES[fileExtension]);
       resContent = fileData;
 
-    } else if (pathName === '/loan-offer') {
+    } else if (pathName === '/loan-offer' && method === 'GET') {
 
       let params = url.searchParams;
+      params = {
+        amount: params.get('amount'),
+        duration: params.get('duration')
+      };
+      
       let offerData = createLoanOffer(params);
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html');
       resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
     
-      
-    } else if (pathName === '/') {
+    } else if (pathName === '/loan-offer' && method === 'POST') {
+
+      parseFormData(req, (parsedData) => {
+        let offerData = createLoanOffer(parsedData);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/html');
+        resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+        res.write(resContent); // because parseFormData is asynchronous, the writing and ending are needed here (otherwise the program moves on while parseFormData is still running asynchronously)
+        res.end();
+      });
+
+      return; // early return to avoid double writing/ending
+
+    } else if (pathName === '/' && method === 'GET') {
 
       let data = {
         apr: aprToFixed()
