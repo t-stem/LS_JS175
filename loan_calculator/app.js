@@ -179,69 +179,92 @@ function parseFormData(request, callback) {
     });
 };
 
+function getLoanOfferRequest(req, res) {
+  let path = req.url;
+  let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
+  let params = url.searchParams;
+  
+  
+  let normalizedParams = {
+    amount: params.get('amount'),
+    duration: params.get('duration')
+  };
+
+  let offerData = createLoanOffer(normalizedParams);
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html');
+  let resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+
+  res.write(resContent); 
+  res.end();
+}
+
+function postLoanOfferRequest(req, res) {
+  parseFormData(req, (parsedData) => {
+    let offerData = createLoanOffer(parsedData);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/html');
+    let resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+    
+    res.write(resContent); // because parseFormData is asynchronous, the writing and ending are needed here (otherwise the program moves on while parseFormData is still running asynchronously)
+    res.end();
+  });
+}
+
+function getIndexRequest(res) {
+  let data = {
+    apr: aprToFixed()
+  }
+  
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html');
+  let resContent = renderTemplateHTML(LOAN_FORM_TEMPLATE, data);
+  
+  res.write(resContent); 
+  res.end();
+}
+
 const SERVER = HTTP.createServer((req, res) => {  
   let method = req.method;
   let path = req.url;
   let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
   let pathName = url.pathname;
   let fileExtension = PATH.extname(pathName);
-  let resContent;
 
   FS.readFile(`./public${pathName}`, (err, fileData) => {
     if (fileData) {
 
       res.statusCode = 200;
       res.setHeader('Content-Type', MIME_TYPES[fileExtension]);
-      resContent = fileData;
+      let resContent = fileData;
+      
+      res.write(resContent); 
+      res.end();
 
     } else if (pathName === '/loan-offer' && method === 'GET') {
 
-      let params = url.searchParams;
-      params = {
-        amount: params.get('amount'),
-        duration: params.get('duration')
-      };
-      
-      let offerData = createLoanOffer(params);
-
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'text/html');
-      resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+      getLoanOfferRequest(req, res);
     
     } else if (pathName === '/loan-offer' && method === 'POST') {
 
-      parseFormData(req, (parsedData) => {
-        let offerData = createLoanOffer(parsedData);
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/html');
-        resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
-        res.write(resContent); // because parseFormData is asynchronous, the writing and ending are needed here (otherwise the program moves on while parseFormData is still running asynchronously)
-        res.end();
-      });
-
-      return; // early return to avoid double writing/ending
+      postLoanOfferRequest(req, res);
 
     } else if (pathName === '/' && method === 'GET') {
 
-      let data = {
-        apr: aprToFixed()
-      }
-      
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'text/html');
-      resContent = renderTemplateHTML(LOAN_FORM_TEMPLATE, data);
+      getIndexRequest(res);
 
     } else {
 
       res.statusCode = 404;
       res.setHeader('Content-Type', 'text/plain');
-      resContent = '404 Not Found';
+      let resContent = '404 Not Found';
+      
+      res.write(resContent); 
+      res.end();
       
     }
-
-  res.write(resContent); 
-  res.end();
-
   });
 });
 
