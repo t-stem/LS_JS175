@@ -1,6 +1,16 @@
 const HTTP = require('http');
 const URL = require('url').URL;
 const HANDLEBARS = require('handlebars');
+const PATH = require('path');
+const FS = require('fs');
+
+const MIME_TYPES = {
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
 
 const SCHEME = 'http';
 const HOST = 'localhost';
@@ -12,49 +22,7 @@ const LOAN_FORM_SOURCE = `
   <head>
     <meta charset="utf-8">
     <title>Loan Calculator</title>
-    <style type="text/css">
-      body {
-        background: rgba(250, 250, 250);
-        font-family: sans-serif;
-        color: rgb(50, 50, 50);
-      }
-
-      article {
-        width: 100%;
-        max-width: 40rem;
-        margin: 0 auto;
-        padding: 1rem 2rem;
-      }
-
-      h1 {
-        font-size: 2.5rem;
-        text-align: center;
-      }
-
-      form,
-      input {
-        font-size: 1.5rem;
-      }
-      form p {
-        text-align: center;
-      }
-      label,
-      input {
-        display: block;
-        width: 100%;
-        padding: 0.5rem;
-        margin-top: 0.5rem;
-      }
-      input[type="submit"] {
-        width: auto;
-        margin: 1rem auto;
-        cursor: pointer;
-        color: #fff;
-        background-color: #01d28e;
-        border: none;
-        border-radius: 0.3rem;
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/css/styles.css">
   </head>
   <body>
     <article>
@@ -77,39 +45,7 @@ const LOAN_OFFER_SOURCE = `
   <head>
     <meta charset="utf-8">
     <title>Loan Calculator</title>
-    <style type="text/css">
-      body {
-        background: rgba(250, 250, 250);
-        font-family: sans-serif;
-        color: rgb(50, 50, 50);
-      }
-
-      article {
-        width: 100%;
-        max-width: 40rem;
-        margin: 0 auto;
-        padding: 1rem 2rem;
-      }
-
-      h1 {
-        font-size: 2.5rem;
-        text-align: center;
-      }
-
-      table {
-        font-size: 1.5rem;
-      }
-      th {
-        text-align: right;
-      }
-      td {
-        text-align: center;
-      }
-      th,
-      td {
-        padding: 0.5rem;
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/css/styles.css">
   </head>
   <body>
     <article>
@@ -229,40 +165,52 @@ function renderTemplateHTML(template, data) {
   return html;
 }
 
-const SERVER = HTTP.createServer((req, res) => {
+const SERVER = HTTP.createServer((req, res) => {  
   let path = req.url;
   let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
   let pathName = url.pathname;
-  let HTMLcontent;
+  let fileExtension = PATH.extname(pathName);
+  let resContent;
 
-  if (pathName === '/loan-offer') {
+  FS.readFile(`./public${pathName}`, (err, fileData) => {
+    if (fileData) {
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', MIME_TYPES[fileExtension]);
+      resContent = fileData;
+
+    } else if (pathName === '/loan-offer') {
+
+      let params = url.searchParams;
+      let offerData = createLoanOffer(params);
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html');
+      resContent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
     
-    let params = url.searchParams;
-    let offerData = createLoanOffer(params);
-    HTMLcontent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
-    
-  } else if (pathName === '/') {
-    let data = {
-      apr: aprToFixed()
+      
+    } else if (pathName === '/') {
+
+      let data = {
+        apr: aprToFixed()
+      }
+      
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html');
+      resContent = renderTemplateHTML(LOAN_FORM_TEMPLATE, data);
+
+    } else {
+
+      res.statusCode = 404;
+      res.setHeader('Content-Type', 'text/plain');
+      resContent = '404 Not Found';
+      
     }
-    
-    HTMLcontent = renderTemplateHTML(LOAN_FORM_TEMPLATE, data);
 
-  } else {
-    
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'text/plain');
-    res.write('404 Not Found');
-    res.end();
-    
-    return;
-  }
-
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/html');
-  res.write(HTMLcontent); 
+  res.write(resContent); 
   res.end();
 
+  });
 });
 
 SERVER.listen(PORT, () => {
