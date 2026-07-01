@@ -1,10 +1,12 @@
 const HTTP = require('http');
 const URL = require('url').URL;
+const HANDLEBARS = require('handlebars');
+
 const SCHEME = 'http';
 const HOST = 'localhost';
 const PORT = 3000;
 
-const HTML_START = `
+const SOURCE = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -30,11 +32,17 @@ const HTML_START = `
       }
 
       table {
-        font-size: 2rem;
+        font-size: 1.5rem;
       }
-
       th {
         text-align: right;
+      }
+      td {
+        text-align: center;
+      }
+      th,
+      td {
+        padding: 0.5rem;
       }
     </style>
   </head>
@@ -42,19 +50,45 @@ const HTML_START = `
     <article>
       <h1>Loan Calculator</h1>
       <table>
-        <tbody>`;
-
-const HTML_END = `
+        <tbody>
+          <tr>
+            <th>Amount:</th>
+            <td>
+              <a href='/?amount={{principalDecrement}}&duration={{durationInYears}}'>- $100</a>
+            </td>
+            <td>$ {{principal}}</td>
+            <td>
+              <a href='/?amount={{principalIncrement}}&duration={{durationInYears}}'>+ $100</a>
+            </td>
+          </tr>
+          <tr>
+            <th>Duration:</th>
+            <td>
+              <a href='/?amount={{principal}}&duration={{durationInYearsDecrement}}'>- 1 year</a>
+            </td>
+            <td>{{durationInYears}} years</td>
+            <td>
+              <a href='/?amount={{principal}}&duration={{durationInYearsIncrement}}'>+ 1 year</a>
+            </td>
+          </tr>
+          <tr>
+            <th>APR:</th>
+            <td colspan='3'>{{apr}}%</td>
+          </tr>
+          <tr>
+            <th>Monthly payment:</th>
+            <td colspan='3'>$ {{monthlyPayment}}</td>
+          </tr>
         </tbody>
       </table>
     </article>
   </body>
-</html>`;
+</html>
+`;
+
+const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(SOURCE);
 
 const APR = 0.05;
-const APR_STR = (APR * 100).toFixed(0);
-const MONTHLY_INTEREST_RATE = APR / 12;
-
 const MIN_PRINCIPAL = 0;
 const MIN_DURATION_YEARS = 1;
 
@@ -87,38 +121,41 @@ function validateParams(params) {
   return [validatePrincipal(principal), validateDurationInYears(durationInYears)];
 }
 
-function calcMonthlyPayment(principal, monthlyInterestRate, durationInMonths) {
-  return principal * (monthlyInterestRate / (1 - (1 + monthlyInterestRate) ** (-durationInMonths)));
+function areAllArgsValid(...args) {
+  return !args.includes(VALIDATED_INVALID);
 }
 
-function createLoanOffer(principal, durationInYears) {
-  let durationInMonths = durationInYears * 12;
-  let monthlyPayment = calcMonthlyPayment(principal, MONTHLY_INTEREST_RATE, durationInMonths);
-  let monthlyPaymentStr = monthlyPayment.toFixed(2);
+function calcMonthlyPayment(principal, monthlyInterestRate, durationInMonths) {
+  let monthlyPayment = principal * (monthlyInterestRate / (1 - (1 + monthlyInterestRate) ** (-durationInMonths)));
+  return monthlyPayment.toFixed(2);
+}
 
-  return `${HTML_START}
-      <tr>
-        <th>Amount:</th>
-        <td><a href="${SCHEME}://${HOST}:${PORT}/?amount=${principal - 100}&duration=${durationInYears}">- $100</a></td>
-        <td>$${principal}</td>
-        <td><a href="${SCHEME}://${HOST}:${PORT}/?amount=${principal + 100}&duration=${durationInYears}">+ $100</a></td>
-      </tr>
-      <tr>
-        <th>Duration:</th>
-        <td><a href="${SCHEME}://${HOST}:${PORT}/?amount=${principal}&duration=${durationInYears - 1}">- 1 year</a></td>
-        <td>${durationInYears} years</td>
-        <td><a href="${SCHEME}://${HOST}:${PORT}/?amount=${principal}&duration=${durationInYears + 1}">+ 1 year</a></td>
-      </tr>
-      <tr>
-        <th>APR:</th>
-        <td colspan='3'>${APR_STR}%</td>
-      </tr>
-      <tr>
-        <th>Monthly payment:</th>
-        <td colspan='3'>$${monthlyPaymentStr}</td>
-      </tr>
-      ${HTML_END}`
+function createLoanOffer(params) {
+  const MONTHLY_INTEREST_RATE = APR / 12;
+  const DELTA_PRINCIPAL = 100;
+  const DELTA_DURATION_YEARS = 1;
+  let offerData = {};
+  offerData.apr = `${(APR * 100).toFixed(2)}`;
+
+  let [principal, durationInYears] = validateParams(params);
+
+  offerData.principal = principal;
+  offerData.principalDecrement = principal === VALIDATED_INVALID ? MIN_PRINCIPAL : principal - DELTA_PRINCIPAL;
+  offerData.principalIncrement = principal === VALIDATED_INVALID ? MIN_PRINCIPAL : principal + DELTA_PRINCIPAL;
+
+  offerData.durationInYears = durationInYears;
+  offerData.durationInYearsDecrement = durationInYears === VALIDATED_INVALID ? MIN_DURATION_YEARS : durationInYears - DELTA_DURATION_YEARS;
+  offerData.durationInYearsIncrement = durationInYears === VALIDATED_INVALID ? MIN_DURATION_YEARS : durationInYears + DELTA_DURATION_YEARS;
   
+  let durationInMonths = durationInYears * 12;
+  offerData.monthlyPayment  = areAllArgsValid(principal, durationInYears) ? calcMonthlyPayment(principal, MONTHLY_INTEREST_RATE, durationInMonths) : VALIDATED_INVALID;
+
+  return offerData;
+}
+
+function renderTemplateHTML(template, data) {
+  let html = template(data);
+  return html;
 }
 
 const SERVER = HTTP.createServer((req, res) => {
@@ -130,23 +167,16 @@ const SERVER = HTTP.createServer((req, res) => {
     res.write('404 Not Found');
     res.end();
     return;
-  }
-
-  let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
-  let params = url.searchParams;
-  let [principal, durationInYears] = validateParams(params);
-
-  if (principal === VALIDATED_INVALID || durationInYears === VALIDATED_INVALID) {
-    res.statusCode = 400;
-    res.setHeader('Content-Type', 'text/plain');
-    res.write('400: invalid parameter');
-    res.end()
   
   } else {
-    let loanOfferHTML = createLoanOffer(principal, durationInYears); // extracted loan offer logic (application logic) into createLoanOaffer function to separate from server logic
+    let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
+    let params = url.searchParams;
+    let offerData = createLoanOffer(params);
+    let HTMLcontent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+    
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html');
-    res.write(loanOfferHTML); 
+    res.write(HTMLcontent); 
     res.end();
   }
 });
