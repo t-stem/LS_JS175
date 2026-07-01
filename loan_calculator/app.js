@@ -1,17 +1,10 @@
 const HTTP = require('http');
 const URL = require('url').URL;
 const HANDLEBARS = require('handlebars');
-const PATH = require('path');
-const FS = require('fs');
 const QUERYSTRING = require('querystring');
-
-const MIME_TYPES = {
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-};
+const ROUTER = require('router');
+const FINALHANDLER = require('finalhandler');
+const SERVESTATIC = require('serve-static');
 
 const SCHEME = 'http';
 const HOST = 'localhost';
@@ -179,7 +172,10 @@ function parseFormData(request, callback) {
     });
 };
 
-function getLoanOfferRequest(req, res) {
+let router = ROUTER();
+router.use(SERVESTATIC('public'));
+
+router.get('/loan-offer', function(req, res) {
   let path = req.url;
   let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
   let params = url.searchParams;
@@ -198,9 +194,9 @@ function getLoanOfferRequest(req, res) {
 
   res.write(resContent); 
   res.end();
-}
+});
 
-function postLoanOfferRequest(req, res) {
+router.post('/loan-offer', function (req, res) {
   parseFormData(req, (parsedData) => {
     let offerData = createLoanOffer(parsedData);
 
@@ -211,12 +207,12 @@ function postLoanOfferRequest(req, res) {
     res.write(resContent); // because parseFormData is asynchronous, the writing and ending are needed here (otherwise the program moves on while parseFormData is still running asynchronously)
     res.end();
   });
-}
+});
 
-function getIndexRequest(res) {
+router.get('/', function (req, res) {
   let data = {
     apr: aprToFixed()
-  }
+  };
   
   res.statusCode = 200;
   res.setHeader('Content-Type', 'text/html');
@@ -224,48 +220,19 @@ function getIndexRequest(res) {
   
   res.write(resContent); 
   res.end();
-}
+});
+
+router.get('/*path', function(req, res) {
+  res.statusCode = 404;
+  res.setHeader('Content-Type', 'text/plain');
+  let resContent = '404 Not Found';
+  
+  res.write(resContent); 
+  res.end();
+});
 
 const SERVER = HTTP.createServer((req, res) => {  
-  let method = req.method;
-  let path = req.url;
-  let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
-  let pathName = url.pathname;
-  let fileExtension = PATH.extname(pathName);
-
-  FS.readFile(`./public${pathName}`, (err, fileData) => {
-    if (fileData) {
-
-      res.statusCode = 200;
-      res.setHeader('Content-Type', MIME_TYPES[fileExtension]);
-      let resContent = fileData;
-      
-      res.write(resContent); 
-      res.end();
-
-    } else if (pathName === '/loan-offer' && method === 'GET') {
-
-      getLoanOfferRequest(req, res);
-    
-    } else if (pathName === '/loan-offer' && method === 'POST') {
-
-      postLoanOfferRequest(req, res);
-
-    } else if (pathName === '/' && method === 'GET') {
-
-      getIndexRequest(res);
-
-    } else {
-
-      res.statusCode = 404;
-      res.setHeader('Content-Type', 'text/plain');
-      let resContent = '404 Not Found';
-      
-      res.write(resContent); 
-      res.end();
-      
-    }
-  });
+  router(req, res, FINALHANDLER(req, res));
 });
 
 SERVER.listen(PORT, () => {
