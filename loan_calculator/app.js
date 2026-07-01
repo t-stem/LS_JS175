@@ -6,7 +6,72 @@ const SCHEME = 'http';
 const HOST = 'localhost';
 const PORT = 3000;
 
-const SOURCE = `
+const LOAN_FORM_SOURCE = `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Loan Calculator</title>
+    <style type="text/css">
+      body {
+        background: rgba(250, 250, 250);
+        font-family: sans-serif;
+        color: rgb(50, 50, 50);
+      }
+
+      article {
+        width: 100%;
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        text-align: center;
+      }
+
+      form,
+      input {
+        font-size: 1.5rem;
+      }
+      form p {
+        text-align: center;
+      }
+      label,
+      input {
+        display: block;
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+      }
+      input[type="submit"] {
+        width: auto;
+        margin: 1rem auto;
+        cursor: pointer;
+        color: #fff;
+        background-color: #01d28e;
+        border: none;
+        border-radius: 0.3rem;
+      }
+    </style>
+  </head>
+  <body>
+    <article>
+      <h1>Loan Calculator</h1>
+      <form action="/loan-offer" method="get">
+        <p>All loans are offered at an APR of {{apr}}%.</p>
+        <label for="amount">How much do you want to borrow (in dollars)?</label>
+        <input type="number" name="amount" id="amount" value="">
+        <label for="duration">How much time do you want to pay back your loan?</label>
+        <input type="number" name="duration" id="duration" value="">
+        <input type="submit" name="" value="Get loan offer!">
+      </form>
+    </article>
+  </body>
+</html>`;
+
+const LOAN_OFFER_SOURCE = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -54,21 +119,21 @@ const SOURCE = `
           <tr>
             <th>Amount:</th>
             <td>
-              <a href='/?amount={{principalDecrement}}&duration={{durationInYears}}'>- $100</a>
+              <a href='/loan-offer?amount={{principalDecrement}}&duration={{durationInYears}}'>- $100</a>
             </td>
             <td>$ {{principal}}</td>
             <td>
-              <a href='/?amount={{principalIncrement}}&duration={{durationInYears}}'>+ $100</a>
+              <a href='/loan-offer?amount={{principalIncrement}}&duration={{durationInYears}}'>+ $100</a>
             </td>
           </tr>
           <tr>
             <th>Duration:</th>
             <td>
-              <a href='/?amount={{principal}}&duration={{durationInYearsDecrement}}'>- 1 year</a>
+              <a href='/loan-offer?amount={{principal}}&duration={{durationInYearsDecrement}}'>- 1 year</a>
             </td>
             <td>{{durationInYears}} years</td>
             <td>
-              <a href='/?amount={{principal}}&duration={{durationInYearsIncrement}}'>+ 1 year</a>
+              <a href='/loan-offer?amount={{principal}}&duration={{durationInYearsIncrement}}'>+ 1 year</a>
             </td>
           </tr>
           <tr>
@@ -86,7 +151,8 @@ const SOURCE = `
 </html>
 `;
 
-const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(SOURCE);
+const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(LOAN_OFFER_SOURCE);
+const LOAN_FORM_TEMPLATE = HANDLEBARS.compile(LOAN_FORM_SOURCE);
 
 const APR = 0.05;
 const MIN_PRINCIPAL = 0;
@@ -130,12 +196,17 @@ function calcMonthlyPayment(principal, monthlyInterestRate, durationInMonths) {
   return monthlyPayment.toFixed(2);
 }
 
+function aprToFixed() {
+  return `${(APR * 100).toFixed(2)}`;
+}
+
 function createLoanOffer(params) {
   const MONTHLY_INTEREST_RATE = APR / 12;
   const DELTA_PRINCIPAL = 100;
   const DELTA_DURATION_YEARS = 1;
   let offerData = {};
-  offerData.apr = `${(APR * 100).toFixed(2)}`;
+
+  offerData.apr = aprToFixed();
 
   let [principal, durationInYears] = validateParams(params);
 
@@ -160,25 +231,38 @@ function renderTemplateHTML(template, data) {
 
 const SERVER = HTTP.createServer((req, res) => {
   let path = req.url;
+  let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
+  let pathName = url.pathname;
+  let HTMLcontent;
 
-  if (path === '/favicon.ico') {
+  if (pathName === '/loan-offer') {
+    
+    let params = url.searchParams;
+    let offerData = createLoanOffer(params);
+    HTMLcontent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
+    
+  } else if (pathName === '/') {
+    let data = {
+      apr: aprToFixed()
+    }
+    
+    HTMLcontent = renderTemplateHTML(LOAN_FORM_TEMPLATE, data);
+
+  } else {
+    
     res.statusCode = 404;
     res.setHeader('Content-Type', 'text/plain');
     res.write('404 Not Found');
     res.end();
-    return;
-  
-  } else {
-    let url = new URL(path, `${SCHEME}://${HOST}:${PORT}`);
-    let params = url.searchParams;
-    let offerData = createLoanOffer(params);
-    let HTMLcontent = renderTemplateHTML(LOAN_OFFER_TEMPLATE, offerData);
     
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/html');
-    res.write(HTMLcontent); 
-    res.end();
+    return;
   }
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html');
+  res.write(HTMLcontent); 
+  res.end();
+
 });
 
 SERVER.listen(PORT, () => {
