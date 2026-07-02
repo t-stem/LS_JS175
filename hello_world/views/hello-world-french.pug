@@ -2,19 +2,19 @@ doctype html
 
 html
   head
-    title First app: Hello World! 
+    title Première App: Bonjour le monde! 
     meta(charset="UTF-8")
     link(rel="stylesheet" href="/stylesheets/application.css")
   body
     nav
       ul
         li 
-          a.current(href="/english")
+          a(href="/english")
             img.flag(src="/images/flag-of-USA.png"
             alt="US flag"
             title="Go to US English site")
         li
-          a(href="/french")
+          a.current(href="/french")
             img.flag(src="/images/flag-of-France.png"
             alt="French flag"
             title="Go to French site")
@@ -29,7 +29,7 @@ html
             alt="Serbian flag"
             title="Go to Serbian site")
     header 
-      h1 Hello World! 
+      h1 Bonjour le monde! 
     main 
-      p This is my first application!
-      img(src="images/earth.jpg" alt="The Earth" title="The Earth")
+      p Voici ma première application!
+      img(src="images/earth.jpg" alt="Le monde" title="Le monde")
