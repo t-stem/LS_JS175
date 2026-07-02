@@ -6,6 +6,8 @@ const PORT = 3000;
 APP.set("views", "./views");
 APP.set("view engine", "pug");
 
+APP.use(EXPRESS.static('public'));
+
 APP.get("/", (request, response) => {
   response.render('hello-world-english');
 });
