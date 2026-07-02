@@ -1,35 +1,24 @@
-doctype html
+extends layout
 
-html
-  head
-    title First app: Hello World! 
-    meta(charset="UTF-8")
-    link(rel="stylesheet" href="/stylesheets/application.css")
-  body
-    nav
-      ul
-        li 
-          a.current(href="/english")
-            img.flag(src="/images/flag-of-USA.png"
-            alt="US flag"
-            title="Go to US English site")
-        li
-          a(href="/french")
-            img.flag(src="/images/flag-of-France.png"
-            alt="French flag"
-            title="Go to French site")
-        li
-          a(href="/japanese")
-            img.flag(src="/images/flag-of-Japan.png"
-            alt="Japanese flag"
-            title="Go to Japanese site")
-        li
-          a(href="/serbian")
-            img.flag(src="/images/flag-of-Serbia.png"
-            alt="Serbian flag"
-            title="Go to Serbian site")
-    header 
-      h1 Hello World! 
-    main 
-      p This is my first application!
-      img(src="images/earth.jpg" alt="The Earth" title="The Earth")
+block navigation_links
+  ul
+    li 
+      a.current(href="/english")
+        img.flag(src="/images/flag-of-USA.png"
+        alt="US flag"
+        title="Go to US English site")
+    li
+      a(href="/french")
+        img.flag(src="/images/flag-of-France.png"
+        alt="Drapeau de la France"
+        title="Aller sur le site français")
+    li
+      a(href="/japanese")
+        img.flag(src="/images/flag-of-Japan.png"
+        alt="日本の国旗"
+        title="日本語版ページを見る")
+    li
+      a(href="/serbian")
+        img.flag(src="/images/flag-of-Serbia.png"
+        alt="Застава Србије"
+        title="Идите на српски сајт")
