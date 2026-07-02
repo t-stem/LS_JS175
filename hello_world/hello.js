@@ -8,10 +8,20 @@ APP.set("view engine", "pug");
 
 APP.use(EXPRESS.static('public'));
 
-const renderEnglishView = (request, response) => response.render("hello-world-english");
-const renderFrenchView = (request, response) => response.render("hello-world-french");
-const renderSerbianView = (request, response) => response.render("hello-world-serbian");
-const renderJapaneseView = (request, response) => response.render("hello-world-japanese");
+const writeLog = (request, response) => {
+  let timeStamp = String(new Date()).substring(4, 24);
+  console.log(`${timeStamp} ${request.method} ${request.originalUrl} ${response.statusCode}`);
+};
+
+const renderView = (request, response, view) => {
+  response.render(view);
+  writeLog(request, response);
+};
+
+const renderEnglishView = (request, response) => renderView(request, response, "hello-world-english");
+const renderFrenchView = (request, response) => renderView(request, response, "hello-world-french");
+const renderSerbianView = (request, response) => renderView(request, response, "hello-world-serbian");
+const renderJapaneseView = (request, response) => renderView(request, response, "hello-world-japanese");
 
 APP.get("/", renderEnglishView);
 APP.get("/english", renderEnglishView);
