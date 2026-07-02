@@ -1,33 +1,25 @@
-const EXPRESS = require('express');
-const APP = EXPRESS();
+const express = require('express');
+const morgan = require('morgan');
+const app = express();
 
 const PORT = 3000;
 
-APP.set("views", "./views");
-APP.set("view engine", "pug");
+app.set("views", "./views");
+app.set("view engine", "pug");
 
-APP.use(EXPRESS.static('public'));
+app.use(express.static('public'));
+app.use(morgan("common"));
 
-const writeLog = (request, response) => {
-  let timeStamp = String(new Date()).substring(4, 24);
-  console.log(`${timeStamp} ${request.method} ${request.originalUrl} ${response.statusCode}`);
-};
+const renderEnglishView = (request, response) => response.render("hello-world-english");
+const renderFrenchView = (request, response) => response.render("hello-world-french");
+const renderSerbianView = (request, response) => response.render("hello-world-serbian");
+const renderJapaneseView = (request, response) => response.render("hello-world-japanese");
 
-const renderView = (request, response, view) => {
-  response.render(view);
-  writeLog(request, response);
-};
-
-const renderEnglishView = (request, response) => renderView(request, response, "hello-world-english");
-const renderFrenchView = (request, response) => renderView(request, response, "hello-world-french");
-const renderSerbianView = (request, response) => renderView(request, response, "hello-world-serbian");
-const renderJapaneseView = (request, response) => renderView(request, response, "hello-world-japanese");
-
-APP.get("/", renderEnglishView);
-APP.get("/english", renderEnglishView);
-APP.get("/french", renderFrenchView);
-APP.get("/serbian", renderSerbianView);
-APP.get("/japanese", renderJapaneseView);
+app.get("/", renderEnglishView);
+app.get("/english", renderEnglishView);
+app.get("/french", renderFrenchView);
+app.get("/serbian", renderSerbianView);
+app.get("/japanese", renderJapaneseView);
 
 let logPortNumber = () => console.log(`Listening on port: ${PORT}`);
-APP.listen(PORT, "localhost", logPortNumber);
+app.listen(PORT, "localhost", logPortNumber);
