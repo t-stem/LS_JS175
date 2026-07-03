@@ -5,6 +5,33 @@ const app = express();
 
 const PORT = 3000;
 
+const COUNTRY_DATA = [
+  {
+    path: "/english",
+    flag: "images/flag-of-USA.png",
+    alt: "US Flag",
+    title: "Go to US English website"
+  },
+  {
+    path: "/french",
+    flag: "images/flag-of-France.png",
+    alt: "Drapeau de la France",
+    title: "Aller sur le site français"
+  },
+  {
+    path: "/japanese",
+    flag: "images/flag-of-Japan.png",
+    alt: "日本の国旗",
+    title: "日本語版ページを見る"
+  },
+  {
+    path: "/serbian",
+    flag: "images/flag-of-Serbia.png",
+    alt: "Застава Србије",
+    title: "Идите на српски сајт"
+  },
+];
+
 app.set("views", "./views");
 app.set("view engine", "pug");
 
@@ -16,8 +43,9 @@ app.locals.currentClassForRequestedPath = (navPath, requestedPath) => navPath ==
 const renderView = ({viewName, language}) => {
   return (request, response) => {
     let viewVars = {
-      requestedPath: request.path,
-      language: language
+      countries: COUNTRY_DATA,
+      language: language,
+      requestedPath: request.path
     };
 
     response.render(viewName, viewVars);

@@ -9,27 +9,12 @@ html(lang=language)
   body 
     nav
       ul
-        li 
-          a(href="/english" class=currentClassForRequestedPath("/english", requestedPath))
-            img.flag(src="/images/flag-of-USA.png"
-            alt="US flag"
-            title="Go to US English site")
-        li
-          a(href="/french" class=currentClassForRequestedPath("/french", requestedPath))
-            img.flag(src="/images/flag-of-France.png"
-            alt="Drapeau de la France"
-            title="Aller sur le site français")
-        li
-          a(href="/japanese" class=currentClassForRequestedPath("/japanese", requestedPath))
-            img.flag(src="/images/flag-of-Japan.png"
-            alt="日本の国旗"
-            title="日本語版ページを見る")
-        li
-          a(href="/serbian" class=currentClassForRequestedPath("/serbian", requestedPath))
-            img.flag(src="/images/flag-of-Serbia.png"
-            alt="Застава Србије"
-            title="Идите на српски сајт")
-    
+        each country in countries
+          li 
+            a(href=country.path class=currentClassForRequestedPath(country.path, requestedPath))
+              img.flag(src=country.flag
+              alt=country.alt
+              title=country.title)
     header 
       block greeting
         h1 Hello World! 
