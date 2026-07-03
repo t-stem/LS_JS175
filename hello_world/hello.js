@@ -8,29 +8,36 @@ const PORT = 3000;
 const COUNTRY_DATA = [
   {
     path: "/english",
-    flag: "images/flag-of-USA.png",
+    flag: "flag-of-USA.png",
     alt: "US Flag",
     title: "Go to US English website"
   },
   {
     path: "/french",
-    flag: "images/flag-of-France.png",
+    flag: "flag-of-France.png",
     alt: "Drapeau de la France",
     title: "Aller sur le site français"
   },
   {
     path: "/japanese",
-    flag: "images/flag-of-Japan.png",
+    flag: "flag-of-Japan.png",
     alt: "日本の国旗",
     title: "日本語版ページを見る"
   },
   {
     path: "/serbian",
-    flag: "images/flag-of-Serbia.png",
+    flag: "flag-of-Serbia.png",
     alt: "Застава Србије",
     title: "Идите на српски сајт"
   },
 ];
+
+const LANGUAGE_CODES = {
+  english: "en-US",
+  french: "fr-FR",
+  japanese: "ja-JP",
+  serbian: "sr-Cryl-rs",
+}
 
 app.set("views", "./views");
 app.set("view engine", "pug");
@@ -40,35 +47,56 @@ app.use(morgan("common"));
 
 app.locals.currentClassForRequestedPath = (navPath, requestedPath) => navPath === requestedPath ? "current" : "";
 
-const renderView = ({viewName, language}) => {
-  return (request, response) => {
-    let viewVars = {
-      countries: COUNTRY_DATA,
-      language: language,
-      requestedPath: request.path
-    };
-
-    response.render(viewName, viewVars);
-  }
-};
-
-const englishViewArgs = {viewName: "hello-world-english", language: "en-US"};
-const frenchViewArgs = {viewName: "hello-world-french", language: "fr-FR"};
-const japaneseViewArgs = {viewName: "hello-world-japanese", language: "ja-JP"};
-const serbianViewArgs = {viewName: "hello-world-serbian", language: "sr-Cyrl-rs"};
-
-const renderEnglishView = renderView(englishViewArgs);
-const renderFrenchView = renderView(frenchViewArgs);
-const renderJapaneseView = renderView(japaneseViewArgs);
-const renderSerbianView = renderView(serbianViewArgs);
-
 const redirectToEnglishView = (request, response) => response.redirect("/english");
 
+const validateRequest = (request) => {
+  let language = request.params.language;
+
+  return LANGUAGE_CODES[language] ? true : false;
+}
+
+const renderView = (request, response) => {
+  let language = request.params.language;
+
+  let viewName = `hello-world-${language}`;
+
+  let viewVars = {
+    countries: COUNTRY_DATA,
+    language: LANGUAGE_CODES[language],
+    requestedPath: request.path
+  };
+
+  response.render(viewName, viewVars);
+};
+
+const handleError = (request, response, next) => {
+  let language = request.params.language;
+  let error = new Error(`Language not supported: ${language}`);
+  
+  next(error);
+}
+
+const handleRequest = (request, response, next) => {
+
+  if (validateRequest(request)) {
+    
+    renderView(request, response);
+  
+  } else {
+    
+    handleError(request, response, next);
+  }
+}
+
+const errorHandler = (error, request, response, _next) => {
+  console.log(error);
+  response.status(404).send(error.message);
+}
+
 app.get("/", redirectToEnglishView);
-app.get("/english", renderEnglishView);
-app.get("/french", renderFrenchView);
-app.get("/serbian", renderSerbianView);
-app.get("/japanese", renderJapaneseView);
+app.get("/:language", handleRequest);
 
 const logPortNumber = () => console.log(`Listening on port: ${PORT}`);
+
+app.use(errorHandler);
 app.listen(PORT, "localhost", logPortNumber);

@@ -12,7 +12,7 @@ html(lang=language)
         each country in countries
           li 
             a(href=country.path class=currentClassForRequestedPath(country.path, requestedPath))
-              img.flag(src=country.flag
+              img.flag(src=`images/${country.flag}`
               alt=country.alt
               title=country.title)
     header 
