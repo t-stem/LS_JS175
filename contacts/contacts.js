@@ -4,6 +4,9 @@ const app = express();
 
 const PORT = 3000;
 
+const NAME_FIELD_MAX_CHARS = 25;
+const PHONE_NR_FORMAT = /^\d\d\d-\d\d\d-\d\d\d\d$/; /// tests whether string exactly equals ###-###-#### (not includes)
+
 const contactData = [
   {
     firstName: "Mike",
@@ -50,6 +53,14 @@ app.use(express.static("public")); // checks whether requested static assets exi
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
 
+const stringContainsNonAlphanumeric = (str) => {
+  return /[^a-z0-9]/i.test(str);
+}
+
+const phoneNumberMeetsFormat = (phoneNumber) => {
+  return PHONE_NR_FORMAT.test(phoneNumber);
+}
+
 const trimContactTextFields = (request, response, next) => {
   const trimUserInputIfText = (fieldName) => {
     if (typeof request.body[fieldName] === 'string') {
@@ -58,51 +69,105 @@ const trimContactTextFields = (request, response, next) => {
   }
   
   let requestFieldNames = Object.keys(request.body);
-  requestFieldNames.forEach(fieldName => trimUserInputIfText);
+  requestFieldNames.forEach(fieldName => trimUserInputIfText(fieldName));
 
   next();
 }
 
 const validateFirstName = (request, response, next) => {
+  let errorMessagesArr = response.locals.errorMessagesArr;
+  
   if (!request.body.hasOwnProperty('firstName')) {
-    response.locals.errorMessagesArr.push('First name property does not exist');
+    errorMessagesArr.push('First name property does not exist');
     return next();
   } 
-  
-  request.body.firstName = request.body.firstName.trim();
+  let firstName = request.body.firstName;
 
-  if (request.body.firstName.length === 0) {
-    response.locals.errorMessagesArr.push('First name is required');
+  if (firstName.length === 0) {
+    errorMessagesArr.push('First name is required');
+  }
+
+  if (firstName.length > NAME_FIELD_MAX_CHARS) {
+    errorMessagesArr.push(`First name character limit: ${NAME_FIELD_MAX_CHARS}`)
+  }
+
+  if (stringContainsNonAlphanumeric(firstName)) {
+    errorMessagesArr.push(`First name cannot contain non-alphanumeric characters`)
   }
 
   next();
 }
 
 const validateLastName = (request, response, next) => {
+  let errorMessagesArr = response.locals.errorMessagesArr;
+  
   if (!request.body.hasOwnProperty('lastName')) {
-    response.locals.errorMessagesArr.push('Last name property does not exist');
+    errorMessagesArr.push('Last name property does not exist');
     return next();
   }
 
- request.body.firstName = request.body.lastName.trim();
+  let lastName = request.body.lastName;
 
-  if (request.body.lastName.length === 0) {
-    response.locals.errorMessagesArr.push('Last name is required');
+  if (lastName.length === 0) {
+    errorMessagesArr.push('Last name is required');
+  }
+
+  if (lastName.length > NAME_FIELD_MAX_CHARS) {
+    errorMessagesArr.push(`Last name character limit: ${NAME_FIELD_MAX_CHARS}`);
+  }
+
+  if (stringContainsNonAlphanumeric(lastName)) {
+    errorMessagesArr.push(`Last name cannot contain non-alphanumeric characters`);
   }
 
   next();
 }
 
 const validatePhoneNumber = (request, response, next) => {
+  let errorMessagesArr = response.locals.errorMessagesArr;
+  
   if (!request.body.hasOwnProperty('phoneNumber')) {
-    response.locals.errorMessagesArr.push('Phone number property doesn not exist');
+    errorMessagesArr.push('Phone number property doesn not exist');
     return next();
   }
 
-request.body.firstName = request.body.phoneNumber.trim();
+  let phoneNumber = request.body.phoneNumber;
 
-  if (request.body.phoneNumber.length === 0) {
-    response.locals.errorMessagesArr.push('Phone number is required');
+  if (phoneNumber.length === 0) {
+    errorMessagesArr.push('Phone number is required');
+    return next();
+  }
+
+  if (!phoneNumberMeetsFormat(phoneNumber)) {
+    errorMessagesArr.push('Phone number must be formatted as follows: ###-###-####');
+  }
+
+  next();
+};
+
+const createFullName = (firstName, lastName) => {
+  return `${firstName} ${lastName}`;
+};
+
+const extractNameFromContract = (contact) => {
+  return createFullName(contact.firstName, contact.lastName);
+};
+
+const contactNameMatchesLookupName = (contact, lookupName) => {
+  let contactName = extractNameFromContract(contact);
+
+  return contactName === lookupName;
+};
+
+const fullNameIsUnique = (lookupName) => {
+  return !contactData.some(contact => contactNameMatchesLookupName(contact, lookupName));
+}
+
+const validateNameUniqueness = (request, response, next) => {
+  let requestedFullName = createFullName(request.body.firstName, request.body.lastName);
+
+  if (!fullNameIsUnique(requestedFullName)) {
+    response.locals.errorMessagesArr.push(`A contact named ${requestedFullName} exists already`);
   }
 
   next();
@@ -154,7 +219,8 @@ app.get("/contacts", (request, response) => { // this arrow function syntax is n
 
 const renderNewContact = (request, response) => {
   let varsToTemplate = {
-    errorMessages: response.locals.errorMessagesArr || [] // assigns an empty array if response.locals.errorMessagesArr doesn't exist
+    errorMessages: response.locals.errorMessagesArr || [], // assigns an empty array if response.locals.errorMessagesArr doesn't exist
+    ...request.body
   };
   
   response.render("new-contact-form", varsToTemplate)
@@ -174,6 +240,7 @@ app.post("/contacts/new",
   trimContactTextFields,
   validateFirstName,
   validateLastName,
+  validateNameUniqueness,
   validatePhoneNumber,
   renderErrorMessages,
   createContact,
