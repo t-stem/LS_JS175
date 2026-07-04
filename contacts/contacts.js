@@ -44,79 +44,7 @@ const sortContacts = contacts => {
 };
 
 
-const createObjOfEntry = (entry) => {
-  return {
-      key: entry[0],
-      value: entry[1],
-    };
-};
 
-const reverseObjOfEntry = ({key, value}) => {
-  return [key, value];
-}
-
-const mapObjOfEntry = (objOfEntry, callback) => { // callback must accept an entry object and return the mapped value
-  let { key, value } = objOfEntry;
-  return [key, callback(objOfEntry)];
-};
-
-const mapObject = (obj, callback) => {
-  let entries = Object.entries(obj);
-
-  return Object.fromEntries(
-    entries
-      .map(entry => createObjOfEntry(entry))
-      .map(objOfEntry => mapObjOfEntry(objOfEntry, callback))
-  );
-};
-
-const filterObjOfEntryValues = ({key, value}, callback) => {
-  return callback(value);
-};
-
-const filterObjOfEntryKeys = ({key, value}, callback) => {
-  return callback(key);
-}
-
-const filterObject = (filterObjOfEntry, obj, callback) => { // filterfunction must e 
-  let entries = Object.entries(obj);
-
-  return Object.fromEntries(
-    entries
-      .map(entry => createObjOfEntry(entry))
-      .filter(objOfEntry => filterObjOfEntry(objOfEntry, callback))
-      .map(objOfEntry => reverseObjOfEntry(objOfEntry))
-  );
-};
-
-const filterObjectKeys = (obj, callback) => {
-  return filterObject(filterObjOfEntryKeys, obj, callback);
-};
-
-const filterObjectValues = (obj, callback) => {
-  return filterObject(filterObjOfEntryValues, obj, callback);
-};
-
-const entryStringLength = ({key, value}) => { // value must be a string
-  if (typeof(value) === 'string') return value.length;
-
-  return value;
-};
-
-const isZero = (int) => int === 0;
-
-const entryErrorMessage = ({key, value}) => {
-  return `${key} is required.`;
-};
-
-const checkContactForErrors = (newContactObj) => {
-  let mappedFieldLengthsObj = mapObject(newContactObj, entryStringLength);
-  let filteredFieldLengthsObj = filterObjectValues(mappedFieldLengthsObj, isZero);
-  let mappedErrorMessagesObj = mapObject(filteredFieldLengthsObj, entryErrorMessage);
-  let errorMessagesArr = Object.values(mappedErrorMessagesObj);
-
-  return errorMessagesArr;
-}
 
 const createContact = (newContact) => {
    contactData.push(newContact);
@@ -128,6 +56,58 @@ app.set("view engine", "pug");
 app.use(express.static("public")); // checks whether requested static assets exists in /public and serves it if it does
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
+
+const validateFirstName = (contactObj, errorMessagesArr) => {
+  if (!contactObj.hasOwnProperty('firstName')) {
+    errorMessagesArr.push('First name property does not exist');
+    return;
+  } 
+  
+  let firstName = contactObj['firstName']
+    .trim();
+
+  if (firstName.length === 0) {
+    errorMessagesArr.push('First name is required');
+  }
+}
+
+const validateLastName = (contactObj, errorMessagesArr) => {
+  if (!contactObj.hasOwnProperty('lastName')) {
+    errorMessagesArr.push('Last name property does not exist');
+    return;
+  }
+
+  let lastName = contactObj['lastName']
+    .trim();
+
+  if (lastName.length === 0) {
+    errorMessagesArr.push('Last name is required');
+  }
+}
+
+const validatePhoneNumber = (contactObj, errorMessagesArr) => {
+  if (!contactObj.hasOwnProperty('phoneNumber')) {
+    errorMessagesArr.push('Phone number property doesn not exist');
+    return;
+  }
+
+  let phoneNumber = contactObj['phoneNumber']
+    .trim();
+
+  if (phoneNumber.length === 0) {
+    errorMessagesArr.push('Phone number is required');
+  }
+}
+
+const checkContactForErrors = (contactObj) => {
+  let errorMessages = [];
+
+  validateFirstName(contactObj, errorMessages);
+  validateLastName(contactObj, errorMessages);
+  validatePhoneNumber(contactObj, errorMessages);
+
+  return errorMessages;
+}
 
 const redirectToContacts = (request, response) => response.redirect("/contacts");
 
@@ -147,11 +127,10 @@ app.get("/contacts", (request, response) => { // this arrow function syntax is n
 });
 
 const renderNewContact = (request, response, viewVarsObj={}) => {
-  let varsToTemplate = { ...viewVarsObj };
-
-  if (!Object.keys(varsToTemplate).includes('errorMessages')) {
-    varsToTemplate['errorMessages'] = [];
-  }
+  let varsToTemplate = { 
+    errorMessages: [], // if viewVarsObj contains a property with this name, the existing one with an empty array value will be overwritten
+    ...viewVarsObj 
+  };
   
   response.render("new-contact-form", varsToTemplate)
 };
@@ -168,7 +147,6 @@ const postNewContactForm = (request, response) => {
   if (errorMessagesArr.length > 0) {
     
     let viewVars = { errorMessages: errorMessagesArr };
-    console.log(viewVars)
     renderNewContact(request, response, viewVars);
 
   } else {

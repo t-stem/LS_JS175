@@ -2,11 +2,6 @@ extends layout
 
 block content 
   h2 Create new contact
-  table 
-    tbody 
-      each errorMessage in errorMessages 
-        tr
-          td #{errorMessage}
   form(action="/contacts/new" method="post")
     fieldset
       dl
