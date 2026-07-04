@@ -43,6 +43,81 @@ const sortContacts = contacts => {
   });
 };
 
+
+const createObjOfEntry = (entry) => {
+  return {
+      key: entry[0],
+      value: entry[1],
+    };
+};
+
+const reverseObjOfEntry = ({key, value}) => {
+  return [key, value];
+}
+
+const mapObjOfEntry = (objOfEntry, callback) => { // callback must accept an entry object and return the mapped value
+  let { key, value } = objOfEntry;
+  return [key, callback(objOfEntry)];
+};
+
+const mapObject = (obj, callback) => {
+  let entries = Object.entries(obj);
+
+  return Object.fromEntries(
+    entries
+      .map(entry => createObjOfEntry(entry))
+      .map(objOfEntry => mapObjOfEntry(objOfEntry, callback))
+  );
+};
+
+const filterObjOfEntryValues = ({key, value}, callback) => {
+  return callback(value);
+};
+
+const filterObjOfEntryKeys = ({key, value}, callback) => {
+  return callback(key);
+}
+
+const filterObject = (filterObjOfEntry, obj, callback) => { // filterfunction must e 
+  let entries = Object.entries(obj);
+
+  return Object.fromEntries(
+    entries
+      .map(entry => createObjOfEntry(entry))
+      .filter(objOfEntry => filterObjOfEntry(objOfEntry, callback))
+      .map(objOfEntry => reverseObjOfEntry(objOfEntry))
+  );
+};
+
+const filterObjectKeys = (obj, callback) => {
+  return filterObject(filterObjOfEntryKeys, obj, callback);
+};
+
+const filterObjectValues = (obj, callback) => {
+  return filterObject(filterObjOfEntryValues, obj, callback);
+};
+
+const entryStringLength = ({key, value}) => { // value must be a string
+  if (typeof(value) === 'string') return value.length;
+
+  return value;
+};
+
+const isZero = (int) => int === 0;
+
+const entryErrorMessage = ({key, value}) => {
+  return `${key} is required.`;
+};
+
+const checkContactForErrors = (newContactObj) => {
+  let mappedFieldLengthsObj = mapObject(newContactObj, entryStringLength);
+  let filteredFieldLengthsObj = filterObjectValues(mappedFieldLengthsObj, isZero);
+  let mappedErrorMessagesObj = mapObject(filteredFieldLengthsObj, entryErrorMessage);
+  let errorMessagesArr = Object.values(mappedErrorMessagesObj);
+
+  return errorMessagesArr;
+}
+
 const createContact = (newContact) => {
    contactData.push(newContact);
 }
@@ -58,21 +133,50 @@ const redirectToContacts = (request, response) => response.redirect("/contacts")
 
 app.get("/", redirectToContacts);
 
-const renderContacts = (request, response) => {
-  let viewVars = {contacts: sortContacts(contactData)};
-  response.render("contacts", viewVars);
-}
-app.get("/contacts", renderContacts);
+const renderContacts = (request, response, viewVarsObj) => {
+  let varsToTemplate = {
+    ...viewVarsObj,
+    contacts: sortContacts(contactData)
+  };
 
-const renderNewContact = (request, response) => response.render("new-contact-form");
-app.get("/contacts/new", renderNewContact);
+  response.render("contacts", varsToTemplate);
+}
+
+app.get("/contacts", (request, response) => { // this arrow function syntax is necessary to prevent app.get from calling renderNewContact with a 'next' argument
+  renderContacts(request, response);
+});
+
+const renderNewContact = (request, response, viewVarsObj={}) => {
+  let varsToTemplate = { ...viewVarsObj };
+
+  if (!Object.keys(varsToTemplate).includes('errorMessages')) {
+    varsToTemplate['errorMessages'] = [];
+  }
+  
+  response.render("new-contact-form", varsToTemplate)
+};
+
+app.get("/contacts/new", (request, response) => { // this arrow function syntax is necessary to prevent app.get from calling renderNewContact with a 'next' argument
+  renderNewContact(request, response); 
+});
 
 const postNewContactForm = (request, response) => {
   let newContact = {...request.body};
 
-  createContact(newContact);
+  let errorMessagesArr = checkContactForErrors(newContact);
 
-  redirectToContacts(request, response);
+  if (errorMessagesArr.length > 0) {
+    
+    let viewVars = { errorMessages: errorMessagesArr };
+    console.log(viewVars)
+    renderNewContact(request, response, viewVars);
+
+  } else {
+    
+    createContact(newContact);
+
+    redirectToContacts(request, response);
+  }
 }
 app.post("/contacts/new", postNewContactForm);
 
