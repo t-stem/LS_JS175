@@ -43,13 +43,6 @@ const sortContacts = contacts => {
   });
 };
 
-
-
-
-const createContact = (newContact) => {
-   contactData.push(newContact);
-}
-
 app.set("views", './views');
 app.set("view engine", "pug");
 
@@ -57,56 +50,89 @@ app.use(express.static("public")); // checks whether requested static assets exi
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
 
-const validateFirstName = (contactObj, errorMessagesArr) => {
-  if (!contactObj.hasOwnProperty('firstName')) {
-    errorMessagesArr.push('First name property does not exist');
-    return;
+const trimContactTextFields = (request, response, next) => {
+  const trimUserInputIfText = (fieldName) => {
+    if (typeof request.body[fieldName] === 'string') {
+      request.body[fieldName] = request.body[fieldName].trim();
+    }
+  }
+  
+  let requestFieldNames = Object.keys(request.body);
+  requestFieldNames.forEach(fieldName => trimUserInputIfText);
+
+  next();
+}
+
+const validateFirstName = (request, response, next) => {
+  if (!request.body.hasOwnProperty('firstName')) {
+    response.locals.errorMessagesArr.push('First name property does not exist');
+    return next();
   } 
   
-  let firstName = contactObj['firstName']
-    .trim();
+  request.body.firstName = request.body.firstName.trim();
 
-  if (firstName.length === 0) {
-    errorMessagesArr.push('First name is required');
+  if (request.body.firstName.length === 0) {
+    response.locals.errorMessagesArr.push('First name is required');
+  }
+
+  next();
+}
+
+const validateLastName = (request, response, next) => {
+  if (!request.body.hasOwnProperty('lastName')) {
+    response.locals.errorMessagesArr.push('Last name property does not exist');
+    return next();
+  }
+
+ request.body.firstName = request.body.lastName.trim();
+
+  if (request.body.lastName.length === 0) {
+    response.locals.errorMessagesArr.push('Last name is required');
+  }
+
+  next();
+}
+
+const validatePhoneNumber = (request, response, next) => {
+  if (!request.body.hasOwnProperty('phoneNumber')) {
+    response.locals.errorMessagesArr.push('Phone number property doesn not exist');
+    return next();
+  }
+
+request.body.firstName = request.body.phoneNumber.trim();
+
+  if (request.body.phoneNumber.length === 0) {
+    response.locals.errorMessagesArr.push('Phone number is required');
+  }
+
+  next();
+}
+
+const responseHasErrors = (response) => {
+  if (!Object.hasOwn(response.locals, 'errorMessagesArr')) return false; // response.locals doesn't inherit from Object.prototype. It's prototype is null. Therefore, it doesn't inherit .hasOwnProperty, so we use this alternative instead.
+  if (!Array.isArray(response.locals.errorMessagesArr)) return false;
+  if (response.locals.errorMessagesArr.length === 0) return false;
+  return true;
+};
+
+const renderErrorMessages = (request, response, next) => {
+  if (responseHasErrors(response)) {
+    renderNewContact(request, response);
+  } else {
+    next();
   }
 }
 
-const validateLastName = (contactObj, errorMessagesArr) => {
-  if (!contactObj.hasOwnProperty('lastName')) {
-    errorMessagesArr.push('Last name property does not exist');
-    return;
-  }
+const createContact = (request, response, next) => {
+  let newContact = {
+    firstName: request.body.firstName,
+    lastName: request.body.lastName,
+    phoneNumber: request.body.phoneNumber
+  } 
+  
+  contactData.push(newContact);
 
-  let lastName = contactObj['lastName']
-    .trim();
-
-  if (lastName.length === 0) {
-    errorMessagesArr.push('Last name is required');
-  }
-}
-
-const validatePhoneNumber = (contactObj, errorMessagesArr) => {
-  if (!contactObj.hasOwnProperty('phoneNumber')) {
-    errorMessagesArr.push('Phone number property doesn not exist');
-    return;
-  }
-
-  let phoneNumber = contactObj['phoneNumber']
-    .trim();
-
-  if (phoneNumber.length === 0) {
-    errorMessagesArr.push('Phone number is required');
-  }
-}
-
-const checkContactForErrors = (contactObj) => {
-  let errorMessages = [];
-
-  validateFirstName(contactObj, errorMessages);
-  validateLastName(contactObj, errorMessages);
-  validatePhoneNumber(contactObj, errorMessages);
-
-  return errorMessages;
+  next();
 }
 
 const redirectToContacts = (request, response) => response.redirect("/contacts");
@@ -126,10 +152,9 @@ app.get("/contacts", (request, response) => { // this arrow function syntax is n
   renderContacts(request, response);
 });
 
-const renderNewContact = (request, response, viewVarsObj={}) => {
-  let varsToTemplate = { 
-    errorMessages: [], // if viewVarsObj contains a property with this name, the existing one with an empty array value will be overwritten
-    ...viewVarsObj 
+const renderNewContact = (request, response) => {
+  let varsToTemplate = {
+    errorMessages: response.locals.errorMessagesArr || [] // assigns an empty array if response.locals.errorMessagesArr doesn't exist
   };
   
   response.render("new-contact-form", varsToTemplate)
@@ -139,24 +164,21 @@ app.get("/contacts/new", (request, response) => { // this arrow function syntax 
   renderNewContact(request, response); 
 });
 
-const postNewContactForm = (request, response) => {
-  let newContact = {...request.body};
-
-  let errorMessagesArr = checkContactForErrors(newContact);
-
-  if (errorMessagesArr.length > 0) {
-    
-    let viewVars = { errorMessages: errorMessagesArr };
-    renderNewContact(request, response, viewVars);
-
-  } else {
-    
-    createContact(newContact);
-
-    redirectToContacts(request, response);
-  }
+const postNewContactForm = (request, response, next) => {
+  response.locals.errorMessagesArr = [];
+  next();
 }
-app.post("/contacts/new", postNewContactForm);
+
+app.post("/contacts/new", 
+  postNewContactForm,
+  trimContactTextFields,
+  validateFirstName,
+  validateLastName,
+  validatePhoneNumber,
+  renderErrorMessages,
+  createContact,
+  redirectToContacts
+);
 
 const logListening = () => console.log(`Listening to port: ${PORT}`);
 app.listen(PORT, "localhost", logListening);
