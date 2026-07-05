@@ -1,10 +1,12 @@
 const express = require('express');
 const morgan = require('morgan');
+const { body, validationResult } = require('express-validator');
 const app = express();
 
 const PORT = 3000;
 
 const NAME_FIELD_MAX_CHARS = 25;
+const REQUIRED_FIELD_MIN_CHARS = 1;
 const PHONE_NR_FORMAT = /^\d\d\d-\d\d\d-\d\d\d\d$/; /// tests whether string exactly equals ###-###-#### (not includes)
 
 const contactData = [
@@ -53,147 +55,9 @@ app.use(express.static("public")); // checks whether requested static assets exi
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
 
-const stringContainsOnlyAlphabetic = (str) => {
-  return /^[A-Za-z]+$/.test(str);
-}
+const redirectToContacts = (request, response) => response.redirect("/contacts");
 
-const phoneNumberMeetsFormat = (phoneNumber) => {
-  return PHONE_NR_FORMAT.test(phoneNumber);
-}
-
-const trimContactTextFields = (request, response, next) => {
-  const trimUserInputIfText = (fieldName) => {
-    if (typeof request.body[fieldName] === 'string') {
-      request.body[fieldName] = request.body[fieldName].trim();
-    }
-  }
-  
-  let requestFieldNames = Object.keys(request.body);
-  requestFieldNames.forEach(fieldName => trimUserInputIfText(fieldName));
-
-  next();
-}
-
-const validateFirstName = (request, response, next) => {
-  let errorMessagesArr = response.locals.errorMessagesArr;
-  
-  if (!request.body.hasOwnProperty('firstName')) {
-    errorMessagesArr.push('First name property does not exist');
-    return next();
-  } 
-  let firstName = request.body.firstName;
-
-  if (firstName.length === 0) {
-    errorMessagesArr.push('First name is required');
-    return next();
-  }
-
-  if (firstName.length > NAME_FIELD_MAX_CHARS) {
-    errorMessagesArr.push(`First name character limit: ${NAME_FIELD_MAX_CHARS}`)
-  }
-
-  if (!stringContainsOnlyAlphabetic(firstName)) {
-    errorMessagesArr.push(`First name cannot contain non-alphanumeric characters`)
-  }
-
-  next();
-}
-
-const validateLastName = (request, response, next) => {
-  let errorMessagesArr = response.locals.errorMessagesArr;
-  
-  if (!request.body.hasOwnProperty('lastName')) {
-    errorMessagesArr.push('Last name property does not exist');
-    return next();
-  }
-
-  let lastName = request.body.lastName;
-
-  if (lastName.length === 0) {
-    errorMessagesArr.push('Last name is required');
-    return next();
-  }
-
-  if (lastName.length > NAME_FIELD_MAX_CHARS) {
-    errorMessagesArr.push(`Last name character limit: ${NAME_FIELD_MAX_CHARS}`);
-  }
-
-  if (!stringContainsOnlyAlphabetic(lastName)) {
-    errorMessagesArr.push(`Last name cannot contain non-alphanumeric characters`);
-  }
-
-  next();
-}
-
-const validatePhoneNumber = (request, response, next) => {
-  let errorMessagesArr = response.locals.errorMessagesArr;
-  
-  if (!request.body.hasOwnProperty('phoneNumber')) {
-    errorMessagesArr.push('Phone number property doesn not exist');
-    return next();
-  }
-
-  let phoneNumber = request.body.phoneNumber;
-
-  if (phoneNumber.length === 0) {
-    errorMessagesArr.push('Phone number is required');
-    return next();
-  }
-
-  if (!phoneNumberMeetsFormat(phoneNumber)) {
-    errorMessagesArr.push('Phone number must be formatted as follows: ###-###-####');
-  }
-
-  next();
-};
-
-const createFullName = (firstName, lastName) => {
-  return `${firstName} ${lastName}`;
-};
-
-const extractNameFromContact = (contact) => {
-  return createFullName(contact.firstName, contact.lastName);
-};
-
-const contactNameMatchesLookupName = (contact, lookupName) => {
-  let contactName = extractNameFromContact(contact);
-
-  return contactName === lookupName;
-};
-
-const fullNameIsUnique = (lookupName) => {
-  return !contactData.some(contact => contactNameMatchesLookupName(contact, lookupName));
-}
-
-const validateNameUniqueness = (request, response, next) => {
-  let errorMessagesArr = response.locals.errorMessagesArr;
-  if (errorMessagesArr.length > 0) return next();
-  
-  let requestedFullName = createFullName(request.body.firstName, request.body.lastName);
-
-  if (!fullNameIsUnique(requestedFullName)) {
-    errorMessagesArr.push(`A contact named ${requestedFullName} exists already`);
-  }
-
-  next();
-}
-
-const responseHasErrors = (response) => {
-  if (!Object.hasOwn(response.locals, 'errorMessagesArr')) return false; // response.locals doesn't inherit from Object.prototype. It's prototype is null. Therefore, it doesn't inherit .hasOwnProperty, so we use this alternative instead.
-  if (!Array.isArray(response.locals.errorMessagesArr)) return false;
-  if (response.locals.errorMessagesArr.length === 0) return false;
-  return true;
-};
-
-const renderErrorMessages = (request, response, next) => {
-  if (responseHasErrors(response)) {
-    renderNewContact(request, response);
-  } else {
-    next();
-  }
-}
-
-const createContact = (request, response, next) => {
+const createContact = (request, response) => {
   let newContact = {
     firstName: request.body.firstName,
     lastName: request.body.lastName,
@@ -202,10 +66,8 @@ const createContact = (request, response, next) => {
   
   contactData.push(newContact);
 
-  next();
-}
-
-const redirectToContacts = (request, response) => response.redirect("/contacts");
+  redirectToContacts(request, response);
+};
 
 app.get("/", redirectToContacts);
 
@@ -216,40 +78,73 @@ const renderContacts = (request, response, viewVarsObj) => {
   };
 
   response.render("contacts", varsToTemplate);
-}
+};
 
-app.get("/contacts", (request, response) => { // this arrow function syntax is necessary to prevent app.get from calling renderNewContact with a 'next' argument
+app.get("/contacts", (request, response) => {
   renderContacts(request, response);
 });
 
 const renderNewContact = (request, response) => {
   let varsToTemplate = {
-    errorMessages: response.locals.errorMessagesArr || [], // assigns an empty array if response.locals.errorMessagesArr doesn't exist
     ...(request.body || {})
   };
   
-  response.render("new-contact-form", varsToTemplate)
+  response.render("new-contact-form", varsToTemplate);
 };
 
-app.get("/contacts/new", (request, response) => { // this arrow function syntax is necessary to prevent app.get from calling renderNewContact with a 'next' argument
+app.get("/contacts/new", (request, response) => {
   renderNewContact(request, response); 
 });
 
-const postNewContactForm = (request, response, next) => {
-  response.locals.errorMessagesArr = [];
-  next();
+const validateName = (fieldName, fieldLabel) => {
+  return body(fieldName)
+    .trim()
+    .isLength({min: REQUIRED_FIELD_MIN_CHARS})
+    .withMessage(`${fieldLabel} is required`)
+    .bail()
+    .isLength({max: NAME_FIELD_MAX_CHARS})
+    .withMessage(`${fieldLabel} is too long. Maximum length is ${NAME_FIELD_MAX_CHARS} characters.`)
+    .isAlpha()
+    .withMessage(`${fieldLabel} contains invalid characters. The name must be fully alphabetic.`)
+};
+
+const validatePhoneNumber = () => {
+  return body("phoneNumber")
+    .trim()
+    .isLength({min: REQUIRED_FIELD_MIN_CHARS})
+    .withMessage("Phone number is required")
+    .bail()
+    .matches(PHONE_NR_FORMAT)
+    .withMessage("Invalid phone number format. Please use ###-###-####.")
+};
+
+const newContactValidationChains = [
+  validateName('firstName', 'First name'),
+  validateName('lastName', 'Last name'),
+  validatePhoneNumber()
+];
+
+const validateContact = (request, response, next) => {
+  let errors = validationResult(request);
+
+  if (!errors.isEmpty()) {
+    let varsToTemplate = {
+      errorMessagesArr: errors.array().map(error => error.msg),
+      firstName: request.body.firstName,
+      lastName: request.body.lastName,
+      phoneNumber: request.body.phoneNumber
+    }
+
+    response.render("new-contact-form", varsToTemplate);
+  } else {
+    next();
+  }
 }
 
 app.post("/contacts/new", 
-  postNewContactForm,
-  trimContactTextFields,
-  validateFirstName,
-  validateLastName,
-  validateNameUniqueness,
-  validatePhoneNumber,
-  renderErrorMessages,
+  newContactValidationChains,
+  validateContact,
   createContact,
-  redirectToContacts
 );
 
 const logListening = () => console.log(`Listening to port: ${PORT}`);
