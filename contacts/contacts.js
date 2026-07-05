@@ -53,8 +53,8 @@ app.use(express.static("public")); // checks whether requested static assets exi
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
 
-const stringContainsNonAlphanumeric = (str) => {
-  return /[^a-z0-9]/i.test(str);
+const stringContainsOnlyAlphabetic = (str) => {
+  return /^[A-Za-z]+$/.test(str);
 }
 
 const phoneNumberMeetsFormat = (phoneNumber) => {
@@ -85,13 +85,14 @@ const validateFirstName = (request, response, next) => {
 
   if (firstName.length === 0) {
     errorMessagesArr.push('First name is required');
+    return next();
   }
 
   if (firstName.length > NAME_FIELD_MAX_CHARS) {
     errorMessagesArr.push(`First name character limit: ${NAME_FIELD_MAX_CHARS}`)
   }
 
-  if (stringContainsNonAlphanumeric(firstName)) {
+  if (!stringContainsOnlyAlphabetic(firstName)) {
     errorMessagesArr.push(`First name cannot contain non-alphanumeric characters`)
   }
 
@@ -110,13 +111,14 @@ const validateLastName = (request, response, next) => {
 
   if (lastName.length === 0) {
     errorMessagesArr.push('Last name is required');
+    return next();
   }
 
   if (lastName.length > NAME_FIELD_MAX_CHARS) {
     errorMessagesArr.push(`Last name character limit: ${NAME_FIELD_MAX_CHARS}`);
   }
 
-  if (stringContainsNonAlphanumeric(lastName)) {
+  if (!stringContainsOnlyAlphabetic(lastName)) {
     errorMessagesArr.push(`Last name cannot contain non-alphanumeric characters`);
   }
 
@@ -149,12 +151,12 @@ const createFullName = (firstName, lastName) => {
   return `${firstName} ${lastName}`;
 };
 
-const extractNameFromContract = (contact) => {
+const extractNameFromContact = (contact) => {
   return createFullName(contact.firstName, contact.lastName);
 };
 
 const contactNameMatchesLookupName = (contact, lookupName) => {
-  let contactName = extractNameFromContract(contact);
+  let contactName = extractNameFromContact(contact);
 
   return contactName === lookupName;
 };
@@ -164,10 +166,13 @@ const fullNameIsUnique = (lookupName) => {
 }
 
 const validateNameUniqueness = (request, response, next) => {
+  let errorMessagesArr = response.locals.errorMessagesArr;
+  if (errorMessagesArr.length > 0) return next();
+  
   let requestedFullName = createFullName(request.body.firstName, request.body.lastName);
 
   if (!fullNameIsUnique(requestedFullName)) {
-    response.locals.errorMessagesArr.push(`A contact named ${requestedFullName} exists already`);
+    errorMessagesArr.push(`A contact named ${requestedFullName} exists already`);
   }
 
   next();
@@ -206,7 +211,7 @@ app.get("/", redirectToContacts);
 
 const renderContacts = (request, response, viewVarsObj) => {
   let varsToTemplate = {
-    ...viewVarsObj,
+    ...(viewVarsObj || {}),
     contacts: sortContacts(contactData)
   };
 
@@ -220,7 +225,7 @@ app.get("/contacts", (request, response) => { // this arrow function syntax is n
 const renderNewContact = (request, response) => {
   let varsToTemplate = {
     errorMessages: response.locals.errorMessagesArr || [], // assigns an empty array if response.locals.errorMessagesArr doesn't exist
-    ...request.body
+    ...(request.body || {})
   };
   
   response.render("new-contact-form", varsToTemplate)
