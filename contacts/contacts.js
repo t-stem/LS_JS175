@@ -3,6 +3,7 @@ const morgan = require('morgan');
 const { body, validationResult } = require('express-validator');
 const session = require('express-session');
 const store = require('connect-loki');
+const flash = require('express-flash');
 
 const app = express();
 const LokiStore = store(session);
@@ -54,7 +55,7 @@ const sortContacts = (contacts) => {
 
 const cloneObj = (obj) => {
   return JSON.parse(JSON.stringify(obj)); // creates a deep copy of an object by turning it into a string first and then parsing the string back into an object
-}
+};
 
 const cloneToDataStore = (request, response, next) => {
   if (!("contactData" in request.session)) {
@@ -62,7 +63,7 @@ const cloneToDataStore = (request, response, next) => {
   }
 
   next()
-}
+};
 
 app.set("views", './views');
 app.set("view engine", "pug");
@@ -81,11 +82,19 @@ const sessionProperties = {
   store: new LokiStore({}),
 };
 
+const transferFlashToLocals = (request, response, next) => {
+  response.locals.flash = request.session.flash;
+  delete request.session.flash;
+  next();
+};
+
 app.use(express.static("public")); // checks whether requested static assets exists in /public and serves it if it does
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
 app.use(session(sessionProperties));
-app.use(cloneToDataStore)
+app.use(flash());
+app.use(cloneToDataStore);
+app.use(transferFlashToLocals);
 
 const redirectToContacts = (request, response) => response.redirect("/contacts");
 
@@ -97,7 +106,7 @@ const createContact = (request, response) => {
   } 
   
   request.session.contactData.push(newContact);
-
+  request.flash("success", "New contact added to the list!");
   redirectToContacts(request, response);
 };
 
@@ -160,8 +169,10 @@ const validateContact = (request, response, next) => {
   let errors = validationResult(request);
 
   if (!errors.isEmpty()) {
-    let varsToTemplate = {
-      errorMessagesArr: errors.array().map(error => error.msg),
+      errors.array().forEach(error => request.flash("error", error.msg));
+    
+      let varsToTemplate = {
+      flash: request.flash(),
       firstName: request.body.firstName,
       lastName: request.body.lastName,
       phoneNumber: request.body.phoneNumber
