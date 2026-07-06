@@ -1,7 +1,11 @@
 const express = require('express');
 const morgan = require('morgan');
 const { body, validationResult } = require('express-validator');
+const session = require('express-session');
+const store = require('connect-loki');
+
 const app = express();
+const LokiStore = store(session);
 
 const PORT = 3000;
 
@@ -32,7 +36,7 @@ const contactData = [
   },
 ];
 
-const sortContacts = contacts => {
+const sortContacts = (contacts) => {
   return contacts.slice().sort((contactA, contactB) => {
     if (contactA.lastName < contactB.lastName) {
       return -1;
@@ -48,12 +52,40 @@ const sortContacts = contacts => {
   });
 };
 
+const cloneObj = (obj) => {
+  return JSON.parse(JSON.stringify(obj)); // creates a deep copy of an object by turning it into a string first and then parsing the string back into an object
+}
+
+const cloneToDataStore = (request, response, next) => {
+  if (!("contactData" in request.session)) {
+    request.session.contactData = cloneObj(contactData);
+  }
+
+  next()
+}
+
 app.set("views", './views');
 app.set("view engine", "pug");
+
+const sessionProperties = {
+  cookie: {
+    httpOnly: true,
+    maxAge: 31 * 24 * 60 * 60 * 1000, // 31 days in milliseconds
+    path: "/",
+    secure: false,
+  },
+  name: "launch-school-contacts-manager-session-id",
+  resave: false,
+  saveUninitialized: true,
+  secret: "this is not very secure",
+  store: new LokiStore({}),
+};
 
 app.use(express.static("public")); // checks whether requested static assets exists in /public and serves it if it does
 app.use(express.urlencoded({ extended: false})); // needed to decode data from body of html requests
 app.use(morgan("common")); // logs http requests to the terminal
+app.use(session(sessionProperties));
+app.use(cloneToDataStore)
 
 const redirectToContacts = (request, response) => response.redirect("/contacts");
 
@@ -64,7 +96,7 @@ const createContact = (request, response) => {
     phoneNumber: request.body.phoneNumber
   } 
   
-  contactData.push(newContact);
+  request.session.contactData.push(newContact);
 
   redirectToContacts(request, response);
 };
@@ -74,7 +106,7 @@ app.get("/", redirectToContacts);
 const renderContacts = (request, response, viewVarsObj) => {
   let varsToTemplate = {
     ...(viewVarsObj || {}),
-    contacts: sortContacts(contactData)
+    contacts: sortContacts(request.session.contactData)
   };
 
   response.render("contacts", varsToTemplate);
